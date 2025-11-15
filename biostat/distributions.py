@@ -1,89 +1,52 @@
+import streamlit as st
 import pandas as pd
 import plotly.express as px
-import streamlit as st
-
-from biostat.utils import clean_missing
+from .utils import clean_missing
 
 
-def show_distribution_tools(df: pd.DataFrame) -> None:
-    """Render histogram, density, and box plot helpers."""
+def render(df: pd.DataFrame):
+    st.header("Distribution Explorer")
+
     df = clean_missing(df)
-    df = df.convert_dtypes()
 
-    st.subheader("Distribution Explorer")
+    numeric_cols = list(df.select_dtypes(include=["number"]).columns)
+    categorical_cols = list(df.select_dtypes(include=["object", "category"]).columns)
 
-    if df.empty:
-        st.info("No data available to profile.")
+    if len(df) == 0:
+        st.warning("No data available.")
         return
 
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-    if not numeric_cols:
-        st.info("No numeric columns detected for distribution plots.")
-        return
+    col1, col2 = st.columns(2)
 
-    # Histogram
-    hist_col = st.selectbox("Histogram column", numeric_cols, key="dist_hist_col")
-    if hist_col:
-        try:
-            data = pd.to_numeric(df[hist_col], errors="coerce")
-            clean_data = data.dropna()
-            if clean_data.empty:
-                raise ValueError("No numeric values remain after cleaning.")
-            fig = px.histogram(
-                x=clean_data,
-                nbins=30,
-                labels={"x": hist_col, "y": "Frequency"},
-                title=f"Histogram of {hist_col}",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as exc:
-            st.warning(f"Unable to render histogram for {hist_col}: {exc}")
+    with col1:
+        column = st.selectbox("Variable", options=df.columns)
 
-    # Density
-    density_col = st.selectbox(
-        "Density plot column", numeric_cols, key="dist_density_col"
-    )
-    if density_col:
-        try:
-            data = pd.to_numeric(df[density_col], errors="coerce")
-            clean_data = data.dropna()
-            if clean_data.empty:
-                raise ValueError("No numeric values remain after cleaning.")
-            fig = px.histogram(
-                x=clean_data,
-                nbins=50,
-                histnorm="probability density",
-                labels={"x": density_col, "y": "Density"},
-                title=f"Density of {density_col}",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as exc:
-            st.warning(f"Unable to render density plot for {density_col}: {exc}")
+    with col2:
+        plot_type = st.selectbox(
+            "Plot Type",
+            ["Histogram", "Density", "ECDF", "Boxplot", "Bar (categorical)"],
+        )
 
-    # Box plot
-    box_col = st.selectbox("Box plot column", numeric_cols, key="dist_box_col")
-    categorical_cols = df.select_dtypes(exclude=["number"]).columns.tolist()
-    group_options = ["(none)"] + categorical_cols
-    group_col = st.selectbox(
-        "Group by (optional)", group_options, key="dist_group_col"
-    )
+    series = df[column]
 
-    if box_col:
-        try:
-            data = pd.to_numeric(df[box_col], errors="coerce")
-            plot_df = pd.DataFrame({box_col: data})
-            plot_df = plot_df.dropna(subset=[box_col])
-            if group_col != "(none)":
-                plot_df[group_col] = df.loc[plot_df.index, group_col]
-            if plot_df.empty:
-                raise ValueError("No numeric values remain after cleaning.")
-            fig = px.box(
-                plot_df,
-                y=box_col,
-                x=group_col if group_col != "(none)" else None,
-                points="all",
-                title=f"Box plot of {box_col}",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as exc:
-            st.warning(f"Unable to render box plot for {box_col}: {exc}")
+    try:
+        if plot_type in ["Histogram", "Density", "ECDF", "Boxplot"]:
+            data = pd.to_numeric(series, errors="coerce")
+        else:
+            data = series
+
+        if plot_type == "Histogram":
+            fig = px.histogram(data, x=data, nbins=40)
+        elif plot_type == "Density":
+            fig = px.density_contour(data, x=data)
+        elif plot_type == "ECDF":
+            fig = px.ecdf(data, x=data)
+        elif plot_type == "Boxplot":
+            fig = px.box(data, y=data)
+        else:
+            fig = px.bar(df, x=column)
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"Could not generate plot: {e}")
