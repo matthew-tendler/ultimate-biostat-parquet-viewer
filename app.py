@@ -51,7 +51,7 @@ def main():
         # Show info about sample data
         st.info("👋 Welcome! Upload a Parquet file or click 'Load Sample Data' to explore a simulated clinical trial dataset.")
         
-        with st.expander("📖 About the Sample Dataset", expanded=True):
+        with st.expander("📖 About the Sample Dataset", expanded=False):
             info = get_sample_data_info()
             st.markdown(f"**{info['name']}**")
             st.markdown(info['description'])
